@@ -1,0 +1,115 @@
+/**
+ * @file ccsds-spp.pk
+ * @author Conlan Wesson
+ * Poke support for CCSDS Space Packet Protocol (CCSDS 133.0-B-2).
+ *
+ * @ingroup ccsds
+ * @defgroup spp CCSDS Space Packet
+ * @{
+ */
+
+/// Version 1 CCSDS Packet
+var SPACE_PACKET_VERSION_1 = 0b000 as uint<3>;
+
+/// Telemetry Packet Type
+var SPACE_PACKET_TELEMETRY   = 0T;
+/// Telecommand Packet Type
+var SPACE_PACKET_TELECOMMAND = 1T;
+
+/// APID for Idle Packets
+var SPACE_PACKET_APID_IDLE = 0x7FF as uint<11>;
+
+/// Continuation segment of User Data
+var SPACE_PACKET_CONTINUATION  = 0b00;
+/// First segment of User Data
+var SPACE_PACKET_FIRST_SEGMENT = 0b01;
+/// Last segment of User Data
+var SPACE_PACKET_LAST_SEGMENT  = 0b10;
+/// Unsegmented User Data
+var SPACE_PACKET_UNSEGMENTED   = 0b11;
+
+/**
+ * Space Packet Primary Header
+ */
+type Space_Packet_Primary_Header =
+  struct
+  {
+    uint<3> version == SPACE_PACKET_VERSION_1;
+    
+    struct {
+      uint<1> pkt_type;
+      uint<1> sec_hdr_flag;
+      uint<11> apid;
+    } identification;
+    
+    struct {
+      uint<2> flags;
+      uint<14> count;
+    } sequence_control;
+    
+    offset<uint<16>,B> data_length;
+    
+    /**
+    * Pretty printer.
+    */
+    method _print = void:
+    {
+      print ("#<\n");
+      printf ("  %<struct-field-name:Primary Header%>:\n");
+      printf ("    %<struct-field-name:Version%>: %<integer:%u3d%>\n", version);
+      
+      printf ("    %<struct-field-name:Identification%>:\n");
+      printf ("      %<struct-field-name:Packet Type%>: ");
+      if (identification.pkt_type == SPACE_PACKET_TELEMETRY)
+        print ("Telemetry\n");
+      else
+        print ("Telecommand\n");
+      
+      printf ("      %<struct-field-name:Secondary Header Flag%>: %<integer:%u1d%>\n", identification.sec_hdr_flag);
+      printf ("      %<struct-field-name:Application Identifier%>: %<integer:0x%u11x%>\n", identification.apid);
+      
+      printf ("    %<struct-field-name:Sequence Control%>:\n");
+      printf ("      %<struct-field-name:Sequence Flags%>: ");
+      if (sequence_control.flags == SPACE_PACKET_CONTINUATION)
+        print ("Continuation\n");
+      else if (sequence_control.flags == SPACE_PACKET_FIRST_SEGMENT)
+        print ("First Segment\n");
+      else if (sequence_control.flags == SPACE_PACKET_LAST_SEGMENT)
+        print ("Last Segment\n");
+      else if (sequence_control.flags == SPACE_PACKET_UNSEGMENTED)
+        print ("Unsegmented\n");
+      
+      printf ("      %<struct-field-name:Sequence Count%>: %<integer:%u14d%>\n", sequence_control.count);
+      printf ("    %<struct-field-name:Data Length%>: %v\n", data_length+1#B);
+      print (">\n");
+    }
+  };
+
+/**
+ * Space Packet
+ */
+type Space_Packet =
+  struct 
+  {
+    // Primary Header
+    Space_Packet_Primary_Header header;
+    
+    // Secondary Header
+    if (header.identification.sec_hdr_flag)
+      byte[0] secondary_header;
+    
+    // User Data Field
+    var user_data_offset = OFFSET;
+    byte[0] @ OFFSET + header.data_length + 1#B;
+    
+    /**
+     * Get the user data.
+     * @return Array containing the user data field.
+     */
+    method get_user_data = byte[]:
+    {
+      return byte[header.data_length + 1#B] @ user_data_offset;
+    }
+  };
+
+/** @} */ // defgroup spp

@@ -1,0 +1,146 @@
+/**
+ * @file ccsds-epp.pk
+ * @author Conlan Wesson
+ * Poke support for CCSDS Encapsulation Packet Protocol (CCSDS 133.1-B-3).
+ *
+ * @ingroup ccsds
+ * @defgroup epp CCSDS Encapsulation Packet
+ * @{
+ */
+
+/// Encapsulation Packet Protocol Version 8
+var ENCAPSULATION_PACKET_VERSION_8 = 0b111;
+
+/// Encapsulation Packet Idle Protocol ID
+var ENCAPSULATION_PACKET_IDLE = 0b000;
+/// LTP over Encapsulation Packet Protocol ID
+var ENCAPSULATION_PACKET_LTP = 0b001;
+/// Encapsulation Packet Internet Protocol Extension Protocol ID
+var ENCAPSULATION_PACKET_IPE = 0b010;
+/// Encapsulation Packet CFDP Protocol ID
+var ENCAPSULATION_PACKET_CFDP = 0b011;
+/// Encapsulation Packet Bundle Protocol Protocol ID
+var ENCAPSULATION_PACKET_BP = 0b100;
+/// Encapsulation Packet Protocol ID Extension Protocol ID
+var ENCAPSULATION_PACKET_USE_PROTOCOL_EXTENSION = 0b110;
+/// Encapsulation Packet Mission-specific Protocol ID
+var ENCAPSULATION_PACKET_MISSION_SPECIFIC = 0b111;
+
+/**
+ * Encapsulation Packet Primary Header
+ */
+type Encapsulation_Packet_Header =
+  struct
+  {
+    uint<3> version == ENCAPSULATION_PACKET_VERSION_8;
+    uint<3> protocol_id;
+    uint<2> length_of_length : (length_of_length != 0) || (protocol_id == ENCAPSULATION_PACKET_IDLE);
+    
+    if (length_of_length == 0b01)
+      offset<uint<8>,B> length8;
+    
+    if (length_of_length >= 0b10)
+      uint<4> user_defined;
+    if (length_of_length >= 0b10)
+      uint<4> protocol_id_extension : (protocol_id_extension == 0) || (protocol_id == ENCAPSULATION_PACKET_USE_PROTOCOL_EXTENSION);
+    
+    if (length_of_length == 0b10)
+      offset<uint<16>,B> length16;
+    
+    if (length_of_length == 0b11)
+      uint<16> ccsds_defined == 0;
+    if (length_of_length == 0b11)
+      offset<uint<32>,B> length32;
+    
+    computed offset<uint<32>,B> length;
+    method get_length = offset<uint<32>,B>:
+    {
+      if (length_of_length == 0b00)
+        return 0#B;
+      if (length_of_length == 0b01)
+        return length8;
+      if (length_of_length == 0b10)
+        return length16;
+      if (length_of_length == 0b11)
+        return length32;
+    }
+    method set_length = (offset<uint<32>,B> len) void:
+    {
+      if (length_of_length == 0b00)
+        return;
+      if (length_of_length == 0b01)
+        length8 = len;
+      if (length_of_length == 0b10)
+        length16 = len;
+      if (length_of_length == 0b11)
+        length32 = len;
+    }
+    
+    /**
+    * Pretty printer.
+    */
+    method _print = void:
+    {
+      print ("#<\n");
+      printf ("  %<struct-field-name:Primary Header%>:\n");
+      printf ("    %<struct-field-name:Version%>: %<integer:%u4d%>\n", version+1);
+
+      // Protocol ID
+      printf ("    %<struct-field-name:Protocol ID%>: ");
+      if (protocol_id == ENCAPSULATION_PACKET_IDLE)
+        printf ("Idle\n");
+      else if (protocol_id == ENCAPSULATION_PACKET_LTP)
+        printf ("LTP\n");
+      else if (protocol_id == ENCAPSULATION_PACKET_IPE)
+        printf ("IPE\n");
+      else if (protocol_id == ENCAPSULATION_PACKET_CFDP)
+        printf ("CFDP\n");
+      else if (protocol_id == ENCAPSULATION_PACKET_BP)
+        printf ("BP\n");
+      else if (protocol_id == ENCAPSULATION_PACKET_USE_PROTOCOL_EXTENSION)
+        printf ("Use protocol extension\n");
+      else if (protocol_id == ENCAPSULATION_PACKET_MISSION_SPECIFIC)
+        printf ("Mission specific\n");
+      else
+        printf ("%<integer:0b%u3b%>\n", protocol_id);
+
+      // Legnth-of-Length
+      printf ("    %<struct-field-name:Length-of-Length%>: ");
+      if (length_of_length == 0b11)
+        printf ("%<integer:4%>");
+      else
+        printf ("%<integer:%u2d%>", length_of_length);
+      printf (" Bytes\n");
+
+      if (length_of_length >= 0b10) {
+        printf ("    %<struct-field-name:User Defined%>: 0x%<integer:%u4x%>\n", user_defined);
+        printf ("    %<struct-field-name:Protocol ID Extension%>: 0x%<integer:%u4x%>\n", protocol_id_extension);
+      }
+      printf ("    %<struct-field-name:Length%>: %v\n", get_length);
+      print (">\n");
+    }
+  };
+
+/**
+ * Encapsulation Packet
+ */
+type Encapsulation_Packet =
+  struct
+  {
+    Encapsulation_Packet_Header header;
+    
+    var encapsulated_data_offset = OFFSET;
+    if (header.length_of_length > 0)
+      byte[0] @ OFFSET + header.length;
+    
+    /**
+     * Get the encapsulated data.
+     * @return Array containing the encapsulated data field.
+     */
+    method get_encapsulated_data = byte[]:
+    {
+      return byte[header.length] @ encapsulated_data_offset;
+    }
+  };
+
+/** @} */ // defgroup epp

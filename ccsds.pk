@@ -1,0 +1,15 @@
+/**
+ * @file ccsds.pk
+ * @author Conlan Wesson <conlan.wesson@proton.me>
+ * Poke support for CCSDS protocols.
+ *
+ * @defgroup ccsds CCSDS
+ * @{
+ */
+
+set_endian (ENDIAN_BIG);
+
+load "ccsds-epp.pk";
+load "ccsds-spp.pk";
+
+/** @} */ // defgroup ccsds

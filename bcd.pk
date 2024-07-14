@@ -1,0 +1,109 @@
+/**
+ * @file bcd.pk
+ * @author Conlan Wesson
+ * Poke support for Binary Coded Decimal (BCD).
+ */
+
+/**
+ * Determine if an integer is BCD encoded.
+ * @param bcd Integer to check for BCD encoding.
+ * @return 1 if the integer is BCD encoded, 0 otherwise.
+ */
+fun isbcd = (uint<64> bcd) uint<1>:
+{
+  while (bcd != 0) {
+    if ((bcd & 0xF) > 9){
+      return 0;
+    }
+    bcd = bcd .>> 4;
+  }
+  return 1;
+}
+
+/**
+ * Convert 4-digit BCD to 16-bit integer.
+ * @param bcd 4-digit BCD.
+ * @return 16-bit integer equivalent of bcd.
+ */
+fun bcd_to_u16 = (uint<16> bcd) uint<16>:
+{
+  if (isbcd(bcd)) {
+    return (((bcd .>> 12) & 0xF) * 1000)
+         + (((bcd .>> 8)  & 0xF) * 100)
+         + (((bcd .>> 4)  & 0xF) * 10)
+         + (bcd & 0xF);
+  } else {
+    raise E_conv;
+  }
+}
+
+assert(bcd_to_u16(0x1958) == 1958);
+assert(bcd_to_u16(0x2036) == 2036);
+assert(bcd_to_u16(0x365) == 365);
+assert(bcd_to_u16(0x196A) ?! E_conv);
+
+/**
+ * Convert 2-digit BCD to 8-bit integer.
+ * @param bcd 2-digit BCD.
+ * @return 8-bit integer equivalent of bcd.
+ */
+fun bcd_to_u8 = (uint<8> bcd) uint<8>:
+{
+  if (isbcd(bcd)) {
+    return (((bcd .>> 4)  & 0xF) * 10)
+         + (bcd & 0xF);
+  } else {
+    raise E_conv;
+  }
+}
+
+assert(bcd_to_u8(0x31) == 31);
+assert(bcd_to_u8(0x12) == 12);
+assert(bcd_to_u8(0xB1) ?! E_conv);
+
+/**
+ * Convert 16-bit integer to 4-digit BCD.
+ * @param num 16-bit integer.
+ * @return 4-digit BCD equivalent of num.
+ */
+fun u16_to_bcd = (uint<16> num) uint<16>:
+{
+  if (num <= 9999) {
+    var bcd = (num/1000) <<. 12;
+    num = num % 1000;
+    bcd = bcd | (num/100) <<. 8;
+    num = num % 100;
+    bcd = bcd | (num/10) <<. 4;
+    num = num % 10;
+    bcd = bcd | num;
+    return bcd;
+  } else {
+    raise E_conv;
+  }
+}
+
+assert(u16_to_bcd(1963) == 0x1963);
+assert(u16_to_bcd(2024) == 0x2024);
+assert(u16_to_bcd(366) == 0x366);
+assert(u16_to_bcd(11954) ?! E_conv);
+
+/**
+ * Convert 8-bit integer to 2-digit BCD.
+ * @param num 8-bit integer.
+ * @return 2-digit BCD equivalent of num.
+ */
+fun u8_to_bcd = (uint<8> num) uint<8>:
+{
+  if (num <= 99) {
+    var bcd = (num/10) <<. 4;
+    num = num % 10;
+    bcd = bcd | num;
+    return bcd;
+  } else {
+    raise E_conv;
+  }
+}
+
+assert(u8_to_bcd(30) == 0x30);
+assert(u8_to_bcd(2) == 0x2);
+assert(u8_to_bcd(100) ?! E_conv);

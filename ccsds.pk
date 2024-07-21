@@ -9,6 +9,7 @@
 
 set_endian (ENDIAN_BIG);
 
+load "ccsds-aos.pk";
 load "ccsds-epp.pk";
 load "ccsds-spp.pk";
 load "ccsds-tc.pk";

@@ -24,6 +24,7 @@ fun isbcd = (uint<64> bcd) uint<1>:
  * Convert 4-digit BCD to 16-bit integer.
  * @param bcd 4-digit BCD.
  * @return 16-bit integer equivalent of bcd.
+ * @exception E_conv The given number is not BCD encoded.
  */
 fun bcd_to_u16 = (uint<16> bcd) uint<16>:
 {
@@ -46,6 +47,7 @@ assert(bcd_to_u16(0x196A) ?! E_conv);
  * Convert 2-digit BCD to 8-bit integer.
  * @param bcd 2-digit BCD.
  * @return 8-bit integer equivalent of bcd.
+ * @exception E_conv The given number is not BCD encoded.
  */
 fun bcd_to_u8 = (uint<8> bcd) uint<8>:
 {
@@ -65,6 +67,7 @@ assert(bcd_to_u8(0xB1) ?! E_conv);
  * Convert 16-bit integer to 4-digit BCD.
  * @param num 16-bit integer.
  * @return 4-digit BCD equivalent of num.
+ * @exception E_conv The given number cannot be BCD encoded.
  */
 fun u16_to_bcd = (uint<16> num) uint<16>:
 {
@@ -91,6 +94,7 @@ assert(u16_to_bcd(11954) ?! E_conv);
  * Convert 8-bit integer to 2-digit BCD.
  * @param num 8-bit integer.
  * @return 2-digit BCD equivalent of num.
+ * @exception E_conv The given number cannot be BCD encoded.
  */
 fun u8_to_bcd = (uint<8> num) uint<8>:
 {

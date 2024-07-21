@@ -10,11 +10,11 @@
 
 load "ccsds-clcw.pk";
 
-/// User-defined frame length for TM transfer frames.
+/// User-defined TM frame length for TM transfer frames. (4.1.1.2)
 /// @todo Is there a better way to do this?
 var tm_frame_length = 1024#B;
-/// User-defined FECF presence.
-var tm_fecf_present = 0;
+/// User-defined TM Frame Error Control Field presence. (4.1.6.1.2)
+var tm_fecf_present = 0T;
 
 /// TM Version 1 (4.1.2.2.2.2)
 var TM_VERSION_1 = 0b00;

@@ -129,7 +129,8 @@ type AOS_Frame =
 
     // Insert Zone
     var insert_zone_offset = OFFSET;
-    byte[0] @ insert_zone_offset + aos_insert_zone_length;
+    if (aos_insert_zone_length > 0#B)
+      byte[0] @ insert_zone_offset + aos_insert_zone_length;
 
     // Data Field
     var data_offset = OFFSET;

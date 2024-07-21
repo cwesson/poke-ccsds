@@ -11,7 +11,7 @@
 /// Encapsulation Packet Protocol Version 8
 var ENCAPSULATION_PACKET_VERSION_8 = 0b111;
 
-/// Encapsulation Packet Idle Protocol ID
+/// Encapsulation Packet Idle Protocol ID (4.1.2.3.3 1)
 var ENCAPSULATION_PACKET_IDLE = 0b000;
 /// LTP over Encapsulation Packet Protocol ID
 var ENCAPSULATION_PACKET_LTP = 0b001;
@@ -21,9 +21,9 @@ var ENCAPSULATION_PACKET_IPE = 0b010;
 var ENCAPSULATION_PACKET_CFDP = 0b011;
 /// Encapsulation Packet Bundle Protocol Protocol ID
 var ENCAPSULATION_PACKET_BP = 0b100;
-/// Encapsulation Packet Protocol ID Extension Protocol ID
+/// Encapsulation Packet Protocol ID Extension Protocol ID (4.1.2.3.3 2)
 var ENCAPSULATION_PACKET_USE_PROTOCOL_EXTENSION = 0b110;
-/// Encapsulation Packet Mission-specific Protocol ID
+/// Encapsulation Packet Mission-specific Protocol ID  (4.1.2.3.3 3)
 var ENCAPSULATION_PACKET_MISSION_SPECIFIC = 0b111;
 
 /**
@@ -32,9 +32,9 @@ var ENCAPSULATION_PACKET_MISSION_SPECIFIC = 0b111;
 type Encapsulation_Packet_Header =
   struct
   {
-    uint<3> version == ENCAPSULATION_PACKET_VERSION_8;
+    uint<3> version = ENCAPSULATION_PACKET_VERSION_8;
     uint<3> protocol_id;
-    uint<2> length_of_length : (length_of_length != 0) || (protocol_id == ENCAPSULATION_PACKET_IDLE);
+    uint<2> length_of_length : (length_of_length != 0) || (protocol_id == ENCAPSULATION_PACKET_IDLE);  // (4.1.2.4.4)
     
     if (length_of_length == 0b01)
       offset<uint<8>,B> length8;
@@ -42,13 +42,13 @@ type Encapsulation_Packet_Header =
     if (length_of_length >= 0b10)
       uint<4> user_defined;
     if (length_of_length >= 0b10)
-      uint<4> protocol_id_extension : (protocol_id_extension == 0) || (protocol_id == ENCAPSULATION_PACKET_USE_PROTOCOL_EXTENSION);
+      uint<4> protocol_id_extension : (protocol_id_extension == 0) || (protocol_id == ENCAPSULATION_PACKET_USE_PROTOCOL_EXTENSION);  // (4.1.2.6.3)
     
     if (length_of_length == 0b10)
       offset<uint<16>,B> length16;
     
     if (length_of_length == 0b11)
-      uint<16> ccsds_defined == 0;
+      uint<16> ccsds_defined = 0;  // (4.1.2.7.2)
     if (length_of_length == 0b11)
       offset<uint<32>,B> length32;
     
@@ -88,19 +88,19 @@ type Encapsulation_Packet_Header =
       // Protocol ID
       printf ("    %<struct-field-name:Protocol ID%>: ");
       if (protocol_id == ENCAPSULATION_PACKET_IDLE)
-        printf ("Idle\n");
+        print ("Idle\n");
       else if (protocol_id == ENCAPSULATION_PACKET_LTP)
-        printf ("LTP\n");
+        print ("LTP\n");
       else if (protocol_id == ENCAPSULATION_PACKET_IPE)
-        printf ("IPE\n");
+        print ("IPE\n");
       else if (protocol_id == ENCAPSULATION_PACKET_CFDP)
-        printf ("CFDP\n");
+        print ("CFDP\n");
       else if (protocol_id == ENCAPSULATION_PACKET_BP)
-        printf ("BP\n");
+        print ("BP\n");
       else if (protocol_id == ENCAPSULATION_PACKET_USE_PROTOCOL_EXTENSION)
-        printf ("Use protocol extension\n");
+        print ("Use protocol extension\n");
       else if (protocol_id == ENCAPSULATION_PACKET_MISSION_SPECIFIC)
-        printf ("Mission specific\n");
+        print ("Mission specific\n");
       else
         printf ("%<integer:0b%u3b%>\n", protocol_id);
 
@@ -120,6 +120,11 @@ type Encapsulation_Packet_Header =
       print (">\n");
     }
   };
+
+assert(Encapsulation_Packet_Header{length_of_length=0}'size == 1#B);
+assert(Encapsulation_Packet_Header{length_of_length=1}'size == 2#B);
+assert(Encapsulation_Packet_Header{length_of_length=2}'size == 4#B);
+assert(Encapsulation_Packet_Header{length_of_length=3}'size == 8#B);
 
 /**
  * Encapsulation Packet

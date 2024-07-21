@@ -89,6 +89,8 @@ type Time_Code_Preamble =
     }
   };
 
+assert(Time_Code_Preamble{}'size == 1#B);
+
 /**
  * CCSDS Time Codes.
  */

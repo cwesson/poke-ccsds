@@ -14,6 +14,9 @@ CCSDS protocols.
 Many CCSDS protocols include "managed parameters" which affect the structure of
 the frames.  These parameters must be configured after loading the pickle.
 
+### TC
+`tc_fecf_present`: Bit indicating the presence of the frame error control field.
+
 ### TM
 `tm_frame_length`: TM transfer frame length.
 

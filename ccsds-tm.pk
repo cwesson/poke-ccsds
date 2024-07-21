@@ -154,7 +154,7 @@ type TM_Frame =
     var data_length = (tm_frame_length - 1#TM_Frame_Primary_Header)
                     + (header.data_status.sec_hdr_flag ? -(1#B+sec_header.length) : 0u#B)
                     + (header.ocf_flag ? -1#B : 0#B)
-                    + (tm_fecf_present ? -2#B : 0#B);
+                    + (tm_fecf_present ? -4#B : 0#B);
     byte[0] @ data_offset + data_length;
 
     if (header.ocf_flag)

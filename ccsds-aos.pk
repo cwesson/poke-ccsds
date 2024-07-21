@@ -137,7 +137,7 @@ type AOS_Frame =
                     + (aos_fhec_present ? -2#B : 0#B)
                     + (-aos_insert_zone_length)
                     + (aos_fecf_present ? -2#B : 0#B)
-                    + (aos_ocf_present[header.vcid] ? -1#B : 0#B);
+                    + (aos_ocf_present[header.vcid] ? -4#B : 0#B);
     byte[0] @ data_offset + data_length;
 
     if (aos_ocf_present[header.vcid])

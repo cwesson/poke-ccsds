@@ -13,5 +13,6 @@ load "ccsds-epp.pk";
 load "ccsds-spp.pk";
 load "ccsds-tc.pk";
 load "ccsds-timecodes.pk";
+load "ccsds-tm.pk";
 
 /** @} */ // defgroup ccsds

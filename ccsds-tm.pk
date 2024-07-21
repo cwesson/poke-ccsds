@@ -1,0 +1,184 @@
+/**
+ * @file ccsds-tm.pk
+ * @author Conlan Wesson
+ * Poke support for CCSDS TM Space Data Link Protocol (CCSDS 132.0-B-3).
+ *
+ * @ingroup ccsds
+ * @defgroup tm CCSDS TM Space Data Link Protocol
+ * @{
+ */
+
+load "ccsds-clcw.pk";
+
+/// User-defined frame length for TM transfer frames.
+/// @todo Is there a better way to do this?
+var tm_frame_length = 1024#B;
+/// User-defined FECF presence.
+var tm_fecf_present = 0;
+
+/// TM Version 1 (4.1.2.2.2.2)
+var TM_VERSION_1 = 0b00;
+
+/// No first header in TM Frame (4.1.2.7.6.4)
+var TM_NO_FIRST_HEADER = 0x7FF;
+/// TM Only Idle Data (4.1.2.7.6.5)
+var TM_FIRST_HEADER_IDLE = 0x7FE;
+
+/**
+ * TM Transfer Frame Primary Header
+ */
+type TM_Frame_Primary_Header =
+  struct
+  {
+    uint<2> version = TM_VERSION_1;
+    uint<10> scid;
+    uint<3> vcid;
+    uint<1> ocf_flag;
+    uint<8> mc_count;
+    uint<8> vc_count;
+    struct {
+      uint<1> sec_hdr_flag;
+      uint<1> sync_flag;
+      uint<1> pkt_order_flag : (sync_flag == 1) || (pkt_order_flag == 0);  // (4.1.2.7.4)
+      uint<2> seg_length_id : (sync_flag == 1) || (seg_length_id == 0b11); // (4.1.2.7.5.2)
+      uint<11> first_hdr_ptr;
+    } data_status;
+
+    // Master Channel Identifier (2.1.3)
+    computed uint<12> mcid;
+    method get_mcid = uint<12>:
+    {
+      return version:::scid;
+    }
+    method set_mcid = (uint<12> id) void:
+    {
+      version = id .>> 10;
+      scid = id & 0x3FF;
+    }
+
+    // Global Virtual Channel Identifier (2.1.3)
+    computed uint<15> gvcid;
+    method get_gvcid = uint<15>:
+    {
+      return version:::scid:::vcid;
+    }
+    method set_gvcid = (uint<15> id) void:
+    {
+      version = id .>> 13;
+      scid = (id .>> 3) & 0x3FF;
+      vcid = id & 0x3;
+    }
+
+    /**
+    * Pretty printer.
+    */
+    method _print = void:
+    {
+      print ("#<\n");
+      printf ("  %<struct-field-name:Primary Header%>:\n");
+      printf ("    %<struct-field-name:Version%>: %<integer:%u2d%>\n", version+1);
+      printf ("    %<struct-field-name:Spacecraft ID%>: %<integer:0x%u10x%>\n", scid);
+      printf ("    %<struct-field-name:Virtual Channel ID%>: %<integer:0x%u3x%>\n", vcid);
+      printf ("    %<struct-field-name:OCF Flag%>: %s\n", ocf_flag ? "Yes" : "No");
+      printf ("    %<struct-field-name:MC Frame Count%>: %<integer:%u8d%>\n", mc_count);
+      printf ("    %<struct-field-name:VC Frame Count%>: %<integer:%u8d%>\n", vc_count);
+      printf ("    %<struct-field-name:Data Field Status%>:\n");
+      printf ("      %<struct-field-name:Secondary Header Flag%>: %s\n", data_status.sec_hdr_flag ? "Yes" : "No");
+      printf ("      %<struct-field-name:Sync Flag%>: %s\n", data_status.sync_flag ? "Yes" : "No");
+      printf ("      %<struct-field-name:Packet Order Flag%>: %s\n", data_status.pkt_order_flag ? "Yes" : "No");
+      printf ("      %<struct-field-name:Segment Length ID%>: %<integer:%u2b%>\n", data_status.seg_length_id);
+      printf ("      %<struct-field-name:First Header Pointer%>: ");
+      if (data_status.first_hdr_ptr == TM_NO_FIRST_HEADER)
+        print ("No header\n");
+      else if (data_status.first_hdr_ptr == TM_FIRST_HEADER_IDLE)
+        print ("Only Idle Data\n");
+      else
+        printf("%<integer:0x%u11x%>\n", data_status.first_hdr_ptr);
+      print (">\n");
+    }
+  };
+
+assert(1#TM_Frame_Primary_Header == 6#B);
+
+/**
+ * TM Transfer Frame Secondary Header
+ */
+type TM_Frame_Secondary_Header =
+  struct
+  {
+    uint<2> version = TM_VERSION_1;
+    offset<uint<6>,B> length;
+
+    // Data Field
+    var data_offset = OFFSET;
+    byte[0] @ OFFSET + length;    // (4.1.3.2.3.2)
+
+    /**
+     * Get the data field.
+     * @return Array containing the data field.
+     */
+    method get_data = byte[]:
+    {
+      return byte[length] @ data_offset;
+    }
+
+    /**
+    * Pretty printer.
+    */
+    method _print = void:
+    {
+      print ("#<\n");
+      printf ("  %<struct-field-name:Secondary Header%>:\n");
+      printf ("    %<struct-field-name:Version%>: %<integer:%u2d%>\n", version+1);
+      printf ("    %<struct-field-name:Header Length%>: %v\n", length);
+      print (">\n");
+    }
+  };
+
+assert(TM_Frame_Secondary_Header{length=0#B}'size == 1#B);
+assert(TM_Frame_Secondary_Header{length=10#B}'size == 11#B);
+
+/**
+ * TM Transfer Frame
+ */
+type TM_Frame =
+  struct
+  {
+    TM_Frame_Primary_Header header;
+
+    if (header.data_status.sec_hdr_flag)
+      TM_Frame_Secondary_Header sec_header;
+
+    // Data Field
+    var data_offset = OFFSET;
+    var data_length = (tm_frame_length - 1#TM_Frame_Primary_Header)
+                    + (header.data_status.sec_hdr_flag ? -(1#B+sec_header.length) : 0u#B)
+                    + (header.ocf_flag ? -1#B : 0#B)
+                    + (tm_fecf_present ? -2#B : 0#B);
+    byte[0] @ data_offset + data_length;
+
+    if (header.ocf_flag)
+      union {
+        CLCW clcw;
+
+        struct {
+          uint<1> type_flag : type_flag == 1;
+          uint<1> report_use;
+          uint<30> data;
+        } type2;
+      } ocf;
+
+    if (tm_fecf_present)
+      uint<16> fecf;
+
+    /**
+     * Get the data field.
+     * @return Array containing the data field.
+     */
+    method get_data = byte[]:
+    {
+      return byte[data_length] @ data_offset;
+    }
+  };
+
+/** @} */ // defgroup tm

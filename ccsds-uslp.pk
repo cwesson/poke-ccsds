@@ -1,0 +1,261 @@
+/**
+ * @file ccsds-uslp.pk
+ * @author Conlan Wesson
+ * Poke support for CCSDS Unified Space Data Link Protocol (CCSDS 732.1-B-3).
+ *
+ * @ingroup ccsds
+ * @defgroup uslp CCSDS Unified Space Data Link Protocol
+ * @{
+ */
+
+load "ccsds-clcw.pk";
+
+/// User-defined USLP Insert Zone length. (4.1.3.2 and 4.1.3.3)
+var uslp_insert_zone_length = 0#B;
+/// User-defined USLP fixed frame length.
+var uslp_frame_length = 1024#B;
+/// User-defined USLP Operational Control Field presence. (4.1.5.3)
+var uslp_ocf_present = 0T;
+/// User-defined USLP Frame Error Control Field presence. (4.1.6.1.2)
+var uslp_fecf_present = 0T;
+
+/// USLP Frame Version 4 (4.1.2.2.2.2)
+var USLP_VERSION_4 = 0b1100;
+/// USLP Spacecraft ID Source (4.1.2.3.3 a)
+var USLP_SCID_SRC = 0b0;
+/// USLP Spacecraft ID Destination (4.1.2.3.3 b)
+var USLP_SCID_DEST = 0b1;
+/// USLP Only Idle Data (4.1.2.4.2)
+var USLP_VCID_OID = 0b111111;
+
+/**
+ * Unified Space Data Link Frame Primary Header
+ */
+type USLP_Frame_Primary_Header =
+  struct
+  {
+    uint<4> tfvn = USLP_VERSION_4;
+    uint<16> scid;
+    uint<1> srcdest;
+    uint<6> vcid;
+    uint<4> map_id;
+    uint<1> eofph;
+
+    if (eofph == 0)
+      struct {
+        offset<uint<16>,B> frame_length;
+        uint<1> bypass_flag;
+        uint<1> protocol_flag;
+        uint<2> spare = 0b00; // (4.1.2.9.2)
+        uint<1> ocf_flag;
+        offset<uint<3>,B> count_length;
+        byte[count_length] count;
+    } nontruncated;
+
+    // Master Channel Identifier (2.1.3)
+    computed uint<20> mcid;
+    method get_mcid = uint<20>:
+    {
+      return tfvn:::scid;
+    }
+    method set_mcid = (uint<20> id) void:
+    {
+      tfvn = id .>> 16;
+      scid = id & 0xFFFF;
+    }
+
+    // Global Virtual Channel Identifier (2.1.3)
+    computed uint<26> gvcid;
+    method get_gvcid = uint<26>:
+    {
+      return tfvn:::scid:::vcid;
+    }
+    method set_gvcid = (uint<26> id) void:
+    {
+      tfvn = id .>> 22;
+      scid = (id .>> 6) & 0xFFFF;
+      vcid = id & 0x3F;
+    }
+
+    // Global MAP Identifier (2.1.3)
+    computed uint<30> gmap_id;
+    method get_gmap_id = uint<30>:
+    {
+      return tfvn:::scid:::vcid:::map_id;
+    }
+    method set_gmap_id = (uint<30> id) void:
+    {
+      tfvn = id .>> 22;
+      scid = (id .>> 6) & 0xFFFF;
+      vcid = (id .>> 4) & 0x3F;
+      map_id = id & 0xF;
+    }
+
+    // Frame Count
+    computed uint<56> frame_count;
+    method get_frame_count = uint<56>:
+    {
+      if (eofph == 0) {
+        var fc = 0;
+        for (b in nontruncated.count) {
+          fc = (fc <<. 8) + b;
+        }
+        return fc;
+      } else
+        return 0;
+    }
+    method set_frame_count = (uint<56> fc) void:
+    {
+      if (eofph == 0) {
+        for (var i = nontruncated.count_length-1#B; i <= 0#B ; i--) {
+          nontruncated.count[i] = fc & 0xFF;
+          fc = fc .>> 8;
+        }
+      }
+    }
+
+    /**
+    * Pretty printer.
+    */
+    method _print = void:
+    {
+      print ("#<\n");
+      printf ("  %<struct-field-name:Primary Header%>:\n");
+      printf ("    %<struct-field-name:Version%>: %<integer:%u4d%>\n", tfvn);
+      printf ("    %<struct-field-name:Spacecraft ID%>: %<integer:0x%u16x%> ", scid);
+      if (srcdest == USLP_SCID_SRC)
+        print ("(source)\n");
+      else
+        print ("(destination)\n");
+      printf ("    %<struct-field-name:Virtual Channel ID%>: ");
+      if (vcid == USLP_VCID_OID)
+        print ("Idle\n");
+      else
+        printf ("%<integer:0x%u6x%>\n", vcid);
+      printf ("    %<struct-field-name:MAP ID%>: %<integer:%u4d%>\n", map_id);
+      if (eofph == 1)
+        print ("Truncated\n");
+      else {
+        print ("    Non-Truncated\n");
+        printf ("    %<struct-field-name:Frame Length%>: %v\n", nontruncated.frame_length+1#B);
+        printf ("    %<struct-field-name:Bypass Flag%>: %s\n", nontruncated.bypass_flag ? "Yes" : "No");
+        printf ("    %<struct-field-name:Protocol Flag%>: %s\n", nontruncated.protocol_flag ? "Control" : "User Data");
+        printf ("    %<struct-field-name:OCF Flag%>: %s\n", nontruncated.ocf_flag ? "Yes" : "No");
+        printf ("    %<struct-field-name:Frame Count Length%>: %v\n", nontruncated.count_length+0#B);
+        printf ("    %<struct-field-name:Frame Count%>: %u56d\n", get_frame_count);
+      }
+
+      print (">\n");
+    }
+  };
+
+/**
+ * Unified Space Data Link Frame Data Field Header
+ */
+type USLP_Frame_Data_Field_Header =
+  struct
+  {
+    uint<3> construction;
+    uint<5> protocol;
+    if (construction == 0b000) // (4.1.1.2.4.3)
+      uint<16> first_header;
+    if (construction == 0b001 || construction == 0b010) // (4.1.1.2.4.5)
+      uint<16> last_octet;
+
+    /**
+    * Pretty printer.
+    */
+    method _print = void:
+    {
+      print ("#<\n");
+      printf ("  %<struct-field-name:Data Field Header%>:\n");
+      printf ("    %<struct-field-name:Construction%>: ");
+      if (construction == 0b000)
+        print ("Packets Spanning Multiple Frames\n");
+      if (construction == 0b001)
+        print ("Start of Packet\n");
+      if (construction == 0b010)
+        print ("Continuing Portion\n");
+      if (construction == 0b011)
+        print ("Octet Stream\n");
+      if (construction == 0b100)
+        print ("Starting Segment\n");
+      if (construction == 0b101)
+        print ("Continuing Segment\n");
+      if (construction == 0b110)
+        print ("Last Segment\n");
+      if (construction == 0b111)
+        print ("No Segmentation\n");
+
+      printf ("    %<struct-field-name:Protocol%>: %<integer:%u5d%>\n", protocol);
+
+      if (construction == 0b000)
+        printf ("    %<struct-field-name:First Header Pointer%>: %<integer:0x%u16x%>\n", first_header);
+      if (construction == 0b001 || construction == 0b010)
+        printf ("    %<struct-field-name:Last Octet Pointer%>: %<integer:0x%u16x%>\n", last_octet);
+
+      print (">\n");
+    }
+  };
+
+/**
+ * USLP Transfer Frame
+ */
+type USLP_Frame =
+  struct
+  {
+    USLP_Frame_Primary_Header header;
+    
+    // Insert Zone
+    var insert_zone_offset = OFFSET;
+    if (uslp_insert_zone_length > 0#B)
+      byte[0] @ insert_zone_offset + uslp_insert_zone_length;
+
+    // Data Zone
+    USLP_Frame_Data_Field_Header data_header;
+    var data_offset = OFFSET;
+    var data_length = (header.eofph ? uslp_frame_length : (header.nontruncated.frame_length as offset<int<32>,B>) + 1#B)
+                    + (-header'size) //(-4#B) // primary header
+                    + (header.eofph ? 0#B : -3#B)
+                    + (header.eofph ? 0#B : -(header.nontruncated.count_length as offset<int<32>,B>))
+                    + (-uslp_insert_zone_length)
+                    + (-1#B) // data field header
+                    + (data_header.construction <= 0b010 ? -2#B : 0#B)
+                    + ((uslp_ocf_present || (!header.eofph && header.nontruncated.ocf_flag)) ? -4#B : 0#B)
+                    + (uslp_fecf_present ? -2#B : 0#B);
+    byte[0] @ data_offset + data_length;
+
+    if (uslp_ocf_present || (!header.eofph && header.nontruncated.ocf_flag))
+      union {
+        CLCW clcw;
+
+        struct {
+          uint<1> type_flag : type_flag == 1;
+          uint<1> report_use;
+          uint<30> data;
+        } type2;
+      } ocf;
+
+    if (uslp_fecf_present)
+      uint<16> fecf;
+
+    /**
+     * Get the data field.
+     * @return Array containing the data field.
+     */
+    method get_data = byte[]:
+    {
+      return byte[data_length] @ data_offset;
+    }
+
+    /**
+     * Get the insert zone field.
+     * @return Array containing the insert zone field.
+     */
+    method get_insert_zone = byte[]:
+    {
+      return byte[uslp_insert_zone_length] @ insert_zone_offset;
+    }
+  };
+
+/** @} */ // defgroup uslp

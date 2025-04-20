@@ -4,11 +4,13 @@ CCSDS protocols.
 
 ## Supported Protocols
 
-* Space Packet
-* Encapsulation Packet
-* TM Space Data Link
-* TC Space Data Link
-* AOS Space Data Link
+* Space Packet Protocol
+* Encapsulation Packet Protocol
+* TM Space Data Link Protocol
+* TC Space Data Link Protocol
+* AOS Space Data Link Protocol
+* Unified Space Data Link Protocol
+* Space Data Link Security Protocol
 
 ## Managed Parameters
 Many CCSDS protocols include "managed parameters" which affect the structure of
@@ -35,3 +37,24 @@ field.
 
 `aos_ocf_present`: Array of bits indicating the presence of the operational
 control field for each virtual channel.
+
+### USLP
+`uslp_insert_zone_length`: USLP insert zone length, 0 for not present.
+
+`uslp_frame_length`:AOS transfer frame length.
+
+`uslp_ocf_present`: Bit indicating the presence of the operational control
+field.
+
+`uslp_fecf_present`: Bit indicating the presence of the frame error control
+field.
+
+
+### SDLS
+`sdls_iv_length`: IV field length.
+
+`sdls_seq_length`: Sequence number field length.
+
+`sdls_pad_len_length`: Pad length field length.
+
+`sdls_mac_length`: Message authentication code length.

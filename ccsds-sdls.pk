@@ -1,0 +1,109 @@
+/**
+ * @file ccsds-sdls.pk
+ * @author Conlan Wesson
+ * Poke support for CCSDS Space Data Link Security Protocol (CCSDS 355.0-B-2).
+ *
+ * @ingroup ccsds
+ * @defgroup sdls CCSDS Space Data Link Security Protocol
+ * @{
+ */
+
+/// User-defined SDLS IV length. (4.1.1.3.3)
+var sdls_iv_length = 96#b;
+/// User-defined SDLS sequence number length. (4.1.1.4.3)
+var sdls_seq_length = 2#B;
+/// User-defined SDLS pad length length.
+var sdls_pad_len_length = 0#B;
+/// User-defined SDLS message authentication code length. (4.1.2.3)
+var sdls_mac_length = 128#b;
+
+/**
+ * Space Data Link Security Header
+ */
+type SDLS_Security_Header =
+  struct
+  {
+    uint<16> spi;
+    byte[sdls_iv_length] iv;
+    byte[sdls_seq_length] seq;
+    byte[sdls_pad_len_length] pad_len;
+
+    // Sequence Number
+    computed uint<64> sequence_num;
+    method get_sequence_num = uint<64>:
+    {
+      var s = 0;
+      for (b in seq) {
+        s = (s <<. 8) + b;
+      }
+      return s;
+    }
+    method set_sequence_num = (uint<64> s) void:
+    {
+      for (var i = seq'length-1; i <= 0 ; i--) {
+        seq[i] = s & 0xFF;
+        s = s .>> 8;
+      }
+    }
+
+    // Pad Length
+    computed uint<16> pad_length;
+    method get_pad_length = uint<16>:
+    {
+      var p = 0;
+      for (b in pad_len) {
+        p = (p <<. 8) + b;
+      }
+      return p;
+    }
+    method set_pad_length = (uint<16> p) void:
+    {
+      for (var i = pad_len'length-1; i <= 0 ; i--) {
+        seq[i] = p & 0xFF;
+        p = p .>> 8;
+      }
+    }
+
+    /**
+    * Pretty printer.
+    */
+    method _print = void:
+    {
+      print ("#<\n");
+      printf ("  %<struct-field-name:Security Header%>:\n");
+      printf ("    %<struct-field-name:SPI%>: %<integer:%u16d%>\n", spi);
+      printf ("    %<struct-field-name:IV%>: ");
+      for (i in iv) {
+        printf ("%u8x", i);
+      }
+      print ("\n");
+      printf ("    %<struct-field-name:Sequence Number%>: %<integer:%u64d%>\n", get_sequence_num);
+      printf ("    %<struct-field-name:Pad Length%>: %<integer:%u16d%>\n", get_pad_length);
+      print (">\n");
+    }
+  };
+
+/**
+ * Space Data Link Security Trailer
+ */
+type SDLS_Security_Trailer =
+  struct
+  {
+    byte[sdls_mac_length] mac;
+
+    /**
+    * Pretty printer.
+    */
+    method _print = void:
+    {
+      print ("#<\n");
+      printf ("  %<struct-field-name:Security Trailer%>:\n");
+      printf ("    %<struct-field-name:MAC%>: ");
+      for (m in mac) {
+        printf ("%u8x", m);
+      }
+      print ("\n>\n");
+    }
+  };
+
+/** @} */ // defgroup sdls

@@ -19,6 +19,9 @@ the frames.  These parameters must be configured after loading the pickle.
 ### TC
 `tc_fecf_present`: Bit indicating the presence of the frame error control field.
 
+`tc_segment_header_present`: Array of bits indicating the presence of the
+segment header for each virtual channel.
+
 ### TM
 `tm_frame_length`: TM transfer frame length.
 

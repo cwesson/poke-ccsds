@@ -16,16 +16,19 @@ CCSDS protocols.
 Many CCSDS protocols include "managed parameters" which affect the structure of
 the frames.  These parameters must be configured after loading the pickle.
 
-### TC
-`tc_fecf_present`: Bit indicating the presence of the frame error control field.
-
-`tc_segment_header_present`: Array of bits indicating the presence of the
-segment header for each virtual channel.
+### Space Packet
+`space_packet_sec_hdr_length`: Space packet secondary header length.
 
 ### TM
 `tm_frame_length`: TM transfer frame length.
 
 `tm_fecf_present`: Bit indicating the presence of the frame error control field.
+
+### TC
+`tc_fecf_present`: Bit indicating the presence of the frame error control field.
+
+`tc_segment_header_present`: Array of bits indicating the presence of the
+segment header for each virtual channel.
 
 ### AOS
 `aos_fhec_present`: Bit indicating the presence of the frame header error
@@ -51,7 +54,6 @@ field.
 
 `uslp_fecf_present`: Bit indicating the presence of the frame error control
 field.
-
 
 ### SDLS
 `sdls_iv_length`: IV field length.

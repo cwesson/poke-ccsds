@@ -12,6 +12,9 @@ CCSDS protocols.
 * Unified Space Data Link Protocol
 * Space Data Link Security Protocol
 
+## Examples
+Example usage is available in the [poke-ccsds-demo](https://github.com/cwesson/poke-ccsds-demo) repository.
+
 ## Managed Parameters
 Many CCSDS protocols include "managed parameters" which affect the structure of
 the frames.  These parameters must be configured after loading the pickle.

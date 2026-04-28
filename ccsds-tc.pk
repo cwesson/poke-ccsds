@@ -8,6 +8,8 @@
  * @{
  */
 
+load "crc.pk";
+
 /// User-defined TC Frame Error Control Field presence. (4.1.4.1.1)
 var tc_fecf_present = 0T;
 /// User-defined TC Segment Header presence for each virtual channel. (4.1.3.2.2.1.2)
@@ -44,8 +46,9 @@ type TC_Frame_Primary_Header =
     uint<2> spare : spare == 0b00;  // (4.1.2.4.2)
     uint<10> scid;
     uint<6> vcid;
-    offset<uint<10>,B> length : (length >= (tc_segment_header_present[vcid] ? 5#B : 4#B)
-                                         + (control_command ? 1#B : 0#B)); // (4.1.2.7.3)
+    offset<uint<10>,B> length : (length >= (tc_segment_header_present[vcid] ? 5#B : 4#B)  // (4.1.2.7.2)
+                                         + (control_command ? 1#B : 0#B)
+                                         + (tc_fecf_present ? 2#B : 0#B));  // (4.1.2.7.3)
     uint<8> sequence_number : (bypass == 0) || (sequence_number == 0);  // (4.1.2.8 3)
 
     // Master Channel Identifier (2.1.3)
@@ -148,15 +151,12 @@ type TC_Frame =
       TC_Segment_Header segment_header;
 
     // Data Field
-    var data_offset = OFFSET;
-    var data_length = header.length + 1#B
-                    + (-1#TC_Frame_Primary_Header)
+    byte[0] data_field;
+    var data_length = (header.length + 1#B - 1#TC_Frame_Primary_Header) // (4.1.2.7.3)
                     + (tc_segment_header_present[header.vcid] ? -1#B : 0#B)
                     + (tc_fecf_present ? -2#B : 0#B);
+    computed byte[data_length] data;
     byte[0] @ OFFSET + data_length;
-
-    if (tc_fecf_present)
-      uint<16> fecf;
 
     /**
      * Get the data field.
@@ -164,7 +164,48 @@ type TC_Frame =
      */
     method get_data = byte[]:
     {
-      return byte[data_length] @ data_offset;
+      return byte[data_length] @ data_field'offset;
+    }
+
+    /**
+     * Set the data field.
+     * @param d Array containing the data field.
+     */
+    method set_data = (byte[] d) void:
+    {
+      byte[data_length] @ data_field'offset = d;
+    }
+
+    /**
+     * Calculate the frame error control field.
+     * @return Expected FECF.
+     */
+    fun calculate_crc = uint<16>:
+    {
+      var length = header.length + 1#B
+                 + (tc_fecf_present ? -2#B : 0#B);
+      return crc16ccitt(0xFFFF, byte[length] @ header'offset);
+    }
+
+    if (tc_fecf_present)
+      uint<16> fecf : fecf = calculate_crc();
+    
+    /**
+    * Pretty printer.
+    */
+    method _print = void:
+    {
+      print ("#<\n");
+      printf ("%v", header);
+      printf ("%<struct-field-name:Data%>: %v\n", get_data);
+      if (tc_fecf_present)
+      {
+        printf ("%<struct-field-name:FECF%>: %u16x", fecf);
+        if (fecf != calculate_crc())
+          printf (" %<error:(expected %u16x%>)", calculate_crc());
+        print ("\n");
+      }
+      print (">\n");
     }
   };
 

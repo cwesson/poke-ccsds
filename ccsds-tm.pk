@@ -8,6 +8,7 @@
  * @{
  */
 
+load "crc.pk";
 load "ccsds-clcw.pk";
 
 /// User-defined TM frame length for TM transfer frames. (4.1.1.2)
@@ -74,7 +75,7 @@ type TM_Frame_Primary_Header =
     */
     method _print = void:
     {
-      print ("#<\n");
+      print ("  #<\n");
       printf ("  %<struct-field-name:Primary Header%>:\n");
       printf ("    %<struct-field-name:Version%>: %<integer:%u2d%>\n", version+1);
       printf ("    %<struct-field-name:Spacecraft ID%>: %<integer:0x%u10x%>\n", scid);
@@ -94,7 +95,7 @@ type TM_Frame_Primary_Header =
         print ("Only Idle Data\n");
       else
         printf("%<integer:0x%u11x%>\n", data_status.first_hdr_ptr);
-      print (">\n");
+      print ("  >\n");
     }
   };
 
@@ -150,26 +151,14 @@ type TM_Frame =
       TM_Frame_Secondary_Header sec_header;
 
     // Data Field
-    var data_offset = OFFSET;
+    byte[0] data_field;
+    var data_offset = data_field'offset;
     var data_length = (tm_frame_length - 1#TM_Frame_Primary_Header)
                     + (header.data_status.sec_hdr_flag ? -(1#B+sec_header.length) : 0u#B)
-                    + (header.ocf_flag ? -1#B : 0#B)
-                    + (tm_fecf_present ? -4#B : 0#B);
+                    + (header.ocf_flag ? -4#B : 0#B)
+                    + (tm_fecf_present ? -2#B : 0#B);
+    computed byte[data_length] data;
     byte[0] @ data_offset + data_length;
-
-    if (header.ocf_flag)
-      union {
-        CLCW clcw;
-
-        struct {
-          uint<1> type_flag : type_flag == 1;
-          uint<1> report_use;
-          uint<30> data;
-        } type2;
-      } ocf;
-
-    if (tm_fecf_present)
-      uint<16> fecf;
 
     /**
      * Get the data field.
@@ -178,6 +167,94 @@ type TM_Frame =
     method get_data = byte[]:
     {
       return byte[data_length] @ data_offset;
+    }
+
+    /**
+     * Set the data field.
+     * @param d Array containing the data field.
+     */
+    method set_data = (byte[] d) void:
+    {
+      byte[data_length] @ data_offset = d;
+    }
+
+    /**
+     * Calculate the frame error control field.
+     * @return Expected FECF.
+     */
+    fun calculate_crc = uint<16>:
+    {
+      var length = tm_frame_length
+                 + (tm_fecf_present ? -2#B : 0#B);
+      return crc16ccitt(0xFFFF, byte[length] @ header'offset);
+    }
+
+    struct {
+      if (header.ocf_flag)
+        struct {
+          uint<1> type_flag;
+
+          if (type_flag == 0)
+            CLCW clcw;
+
+          if (type_flag == 1)
+            struct {
+              uint<1> report_use;
+              uint<30> data;
+
+              /**
+              * Pretty printer.
+              */
+              method _print = void:
+              {
+                print ("      #<\n");
+                printf ("      %<struct-field-name:Type-2 Report%>:\n");
+                printf ("        %<struct-field-name:Report Use%>: %<integer:%u1d%>\n", report_use);
+                printf ("        %<struct-field-name:Data%>: %<integer:%u30d%>\n", data);
+                print ("      >\n");
+              }
+            } type2;
+
+          /**
+          * Pretty printer.
+          */
+          method _print = void:
+          {
+            if (type_flag == 0)
+              printf ("%v",clcw);
+            else
+              printf ("%v",type2);
+          }
+        } ocf;
+
+      if (tm_fecf_present)
+        uint<16> fecf : fecf == calculate_crc();
+    } trailer;
+
+    /**
+    * Pretty printer.
+    */
+    method _print = void:
+    {
+      printf ("#<\n");
+      printf ("%v", header);
+      printf ("  %<struct-field-name:Data%>: %v\n", get_data);
+      if (header.ocf_flag || tm_fecf_present)
+      {
+        printf ("  %<struct-field-name:Trailer%>:\n");
+      }
+      if (header.ocf_flag)
+      {
+        printf ("    %<struct-field-name:OCF%>: \n%v", trailer.ocf);
+      }
+      if (tm_fecf_present)
+      {
+        printf ("    %<struct-field-name:FECF%>: 0x%u16x", trailer.fecf);
+        if (trailer.fecf != calculate_crc())
+          printf (" %<error:(expected 0x%u16x)%>", calculate_crc());
+        print ("\n");
+      }
+      print (">\n");
     }
   };
 

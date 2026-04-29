@@ -8,6 +8,7 @@
  * @{
  */
 
+load "crc.pk";
 load "ccsds-clcw.pk";
 
 /// User-defined AOS Frame Header Error Control presence. (4.1.2.6.2)
@@ -152,8 +153,19 @@ type AOS_Frame =
         } type2;
       } ocf;
 
+    /**
+     * Calculate the frame error control field.
+     * @return Expected FECF.
+     */
+    fun calculate_crc = uint<16>:
+    {
+      var length = aos_frame_length
+                 + (aos_fecf_present ? -2#B : 0#B);
+      return crc16ccitt(0xFFFF, byte[length] @ header'offset);
+    }
+
     if (aos_fecf_present)
-      uint<16> fecf;
+      uint<16> fecf : fecf == calculate_crc();
 
     /**
      * Get the data field.

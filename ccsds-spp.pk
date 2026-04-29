@@ -57,7 +57,7 @@ type Space_Packet_Primary_Header =
     */
     method _print = void:
     {
-      print ("#<\n");
+      print ("  #<\n");
       printf ("  %<struct-field-name:Primary Header%>:\n");
       printf ("    %<struct-field-name:Version%>: %<integer:%u3d%>\n", version);
       
@@ -88,7 +88,7 @@ type Space_Packet_Primary_Header =
       
       printf ("      %<struct-field-name:Sequence Count%>: %<integer:%u14d%>\n", sequence_control.count);
       printf ("    %<struct-field-name:Data Length%>: %v\n", data_length+1#B);
-      print (">\n");
+      print ("  >\n");
     }
   };
 
@@ -104,38 +104,40 @@ type Space_Packet =
     Space_Packet_Primary_Header header;
     
     // Data field
-    byte[0] data_field;
+    struct {
+      byte[0] _data_field_start;
+      // Secondary Header
+      if (header.identification.sec_hdr_flag)
+        byte[space_packet_sec_hdr_length] secondary_header;
+      
+      // User Data Field
+      var user_data_offset = _data_field_start'offset
+                          + (header.identification.sec_hdr_flag ? space_packet_sec_hdr_length : 0#B);
+      var user_data_length = header.data_length + 1#B
+                          + (header.identification.sec_hdr_flag ? -space_packet_sec_hdr_length : 0#B);
+      computed byte[] user_data;
+      byte[0] user_data_field;
+      
+      /**
+      * Get the user data.
+      * @return Array containing the user data field.
+      */
+      method get_user_data = byte[]:
+      {
+        return byte[user_data_length] @ user_data_offset;
+      }
+      
+      /**
+      * Set the user data.
+      * @param data Array containing the user data field.
+      */
+      method set_user_data = (byte[] data) void:
+      {
+        byte[user_data_length] @ user_data_offset = data;
+      }
     
-    // Secondary Header
-    if (header.identification.sec_hdr_flag)
-      byte[0] secondary_header;
-    
-    // User Data Field
-    var user_data_offset = data_field'offset
-                         + (header.identification.sec_hdr_flag ? space_packet_sec_hdr_length : 0#B);
-    var user_data_length = header.data_length + 1#B
-                         + (header.identification.sec_hdr_flag ? -space_packet_sec_hdr_length : 0#B);
-    computed byte[] user_data;
-    
-    /**
-     * Get the user data.
-     * @return Array containing the user data field.
-     */
-    method get_user_data = byte[]:
-    {
-      return byte[user_data_length] @ user_data_offset;
-    }
-    
-    /**
-     * Set the user data.
-     * @param data Array containing the user data field.
-     */
-    method set_user_data = (byte[] data) void:
-    {
-      byte[user_data_length] @ user_data_offset = data;
-    }
-    
-    byte[0] @ 1#Space_Packet_Primary_Header + header.data_length + 1#B;
+      byte[0] @ header.data_length + 1#B;
+    } data_field;
     
     /**
     * Pretty printer.
@@ -146,8 +148,8 @@ type Space_Packet =
       printf ("%v", header);
       printf ("  %<struct-field-name:Data Field%>:\n");
       if (header.identification.sec_hdr_flag)
-        printf ("    %<struct-field-name:Secondary Header%>: %v\n", secondary_header);
-      printf ("    %<struct-field-name:User Data%>: %v\n", get_user_data);
+        printf ("    %<struct-field-name:Secondary Header%>: %v\n", data_field.secondary_header);
+      printf ("    %<struct-field-name:User Data%>: %v\n", data_field.get_user_data);
       print (">\n");
     }
   };

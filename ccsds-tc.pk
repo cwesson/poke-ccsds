@@ -81,7 +81,7 @@ type TC_Frame_Primary_Header =
     */
     method _print = void:
     {
-      print ("#<\n");
+      print ("  #<\n");
       printf ("  %<struct-field-name:Primary Header%>:\n");
       printf ("    %<struct-field-name:Version%>: %<integer:%u3d%>\n", version+1);
       printf ("    %<struct-field-name:Bypass Flag%>: Type-%s\n", (bypass == TC_BYPASS_TYPE_A) ? "A" : "B");
@@ -90,7 +90,7 @@ type TC_Frame_Primary_Header =
       printf ("    %<struct-field-name:Virtual Channel ID%>: %<integer:0x%u6x%>\n", vcid);
       printf ("    %<struct-field-name:Frame Length%>: %v\n", length+1#B);
       printf ("    %<struct-field-name:Sequence Number%>: %<integer:%u8d%>\n", sequence_number);
-      print (">\n");
+      print ("  >\n");
     }
   };
 
@@ -188,7 +188,7 @@ type TC_Frame =
     }
 
     if (tc_fecf_present)
-      uint<16> fecf : fecf = calculate_crc();
+      uint<16> fecf : fecf == calculate_crc();
     
     /**
     * Pretty printer.
@@ -197,12 +197,12 @@ type TC_Frame =
     {
       print ("#<\n");
       printf ("%v", header);
-      printf ("%<struct-field-name:Data%>: %v\n", get_data);
+      printf ("  %<struct-field-name:Data%>: %v\n", get_data);
       if (tc_fecf_present)
       {
-        printf ("%<struct-field-name:FECF%>: %u16x", fecf);
+        printf ("  %<struct-field-name:FECF%>: 0x%u16x", fecf);
         if (fecf != calculate_crc())
-          printf (" %<error:(expected %u16x%>)", calculate_crc());
+          printf (" %<error:(expected 0x%u16x)%>", calculate_crc());
         print ("\n");
       }
       print (">\n");

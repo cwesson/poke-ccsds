@@ -17,7 +17,6 @@ var CLCW_VERSION_1 = 0b00;
 type CLCW =
   struct
   {
-    uint<1> control_type : control_type == 0;
     uint<2> version : version == CLCW_VERSION_1;
     uint<3> status;
     uint<2> cop_in_effect;
@@ -39,24 +38,24 @@ type CLCW =
     */
     method _print = void:
     {
-      print ("#<\n");
-      printf ("    %<struct-field-name:Communications Link Control Word%>:\n");
-      printf ("      %<struct-field-name:Version%>: %<integer:%u2d%>\n", version+1);
-      printf ("      %<struct-field-name:Status%>: %<integer:%u3d%>\n", status);
-      printf ("      %<struct-field-name:COP in Effect%>: %<integer:%u2d%>\n", cop_in_effect);
-      printf ("      %<struct-field-name:Virtual Channel ID%>: %<integer:0x%u6x%>\n", vcid);
-      printf ("      %<struct-field-name:Flags%>:\n");
-      printf ("        %<struct-field-name:RF Available%>: %s\n", flags.no_rf_avail ? "No" : "Yes");
-      printf ("        %<struct-field-name:Bit Lock%>: %s\n", flags.no_bit_lock ? "No" : "Yes");
-      printf ("        %<struct-field-name:Lockout%>: %s\n", flags.lockout ? "Yes" : "No");
-      printf ("        %<struct-field-name:Wait%>: %s\n", flags.wait ? "Yes" : "No");
-      printf ("        %<struct-field-name:Retransmit%>: %s\n", flags.retransmit ? "Yes" : "No");
-      printf ("      %<struct-field-name:FARM-B Counter%>: ...%<integer:%u2b%>\n", farm_b_counter);
-      printf ("      %<struct-field-name:Report Value%>: %<integer:%u8d%>\n", value);
-      print (">\n");
+      print ("      #<\n");
+      printf ("      %<struct-field-name:Communications Link Control Word%>:\n");
+      printf ("        %<struct-field-name:Version%>: %<integer:%u2d%>\n", version+1);
+      printf ("        %<struct-field-name:Status%>: %<integer:%u3d%>\n", status);
+      printf ("        %<struct-field-name:COP in Effect%>: %<integer:%u2d%>\n", cop_in_effect);
+      printf ("        %<struct-field-name:Virtual Channel ID%>: %<integer:0x%u6x%>\n", vcid);
+      printf ("        %<struct-field-name:Flags%>:\n");
+      printf ("          %<struct-field-name:RF Available%>: %s\n", flags.no_rf_avail ? "No" : "Yes");
+      printf ("          %<struct-field-name:Bit Lock%>: %s\n", flags.no_bit_lock ? "No" : "Yes");
+      printf ("          %<struct-field-name:Lockout%>: %s\n", flags.lockout ? "Yes" : "No");
+      printf ("          %<struct-field-name:Wait%>: %s\n", flags.wait ? "Yes" : "No");
+      printf ("          %<struct-field-name:Retransmit%>: %s\n", flags.retransmit ? "Yes" : "No");
+      printf ("        %<struct-field-name:FARM-B Counter%>: ...%<integer:%u2b%>\n", farm_b_counter);
+      printf ("        %<struct-field-name:Report Value%>: %<integer:%u8d%>\n", value);
+      print ("      >\n");
     }
   };
 
-assert(1#CLCW == 4#B);
+assert(1#CLCW == 31#b);
 
 /** @} */ // defgroup clcw

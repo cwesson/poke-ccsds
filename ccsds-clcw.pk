@@ -17,6 +17,7 @@ var CLCW_VERSION_1 = 0b00;
 type CLCW =
   struct
   {
+    uint<1> control_type : control_type == 0;
     uint<2> version : version == CLCW_VERSION_1;
     uint<3> status;
     uint<2> cop_in_effect;
@@ -56,6 +57,6 @@ type CLCW =
     }
   };
 
-assert(1#CLCW == 31#b);
+assert(1#CLCW == 4#B);
 
 /** @} */ // defgroup clcw

@@ -31,6 +31,11 @@ var AOS_VERSION_2 = 0b01;
 /// AOS Only Idle Data Virtual Channel (4.1.2.3.2 1)
 var AOS_VCID_OID = 0b111111;
 
+/// AOS OCR Type-2 Report is project-specific. (4.1.5.5a)
+var AOS_TYPE2_PROJECT_SPECIFIC = 0t;
+/// AOS OCR Type-2 Report is SDLS FSR. (4.1.5.5b)
+var AOS_TYPE2_SDLS_FSR = 1t;
+
 /**
  * AOS Transfer Frame Primary Header
  */
@@ -41,10 +46,15 @@ type AOS_Frame_Primary_Header =
     uint<8> scid;
     uint<6> vcid;
     uint<24> count;
-    uint<1> replay_flag;
-    uint<1> count_usage;
-    uint<2> spare = 0;  // (4.1.2.5.4.2)
-    uint<4> count_cycle : (count_usage == 1T) || (count_cycle == 0); // (4.1.2.5.5.3)
+    struct {
+      uint<1> replay_flag;
+      uint<1> count_usage;
+      uint<2> spare = 0;  // (4.1.2.5.4.2)
+      uint<4> count_cycle : (count_usage == 1T) || (count_cycle == 0); // (4.1.2.5.5.3)
+    } signaling;
+
+    if (aos_fhec_present)
+      uint<16> fhec;
 
     // Master Channel Identifier (2.1.3)
     computed uint<10> mcid;
@@ -76,7 +86,7 @@ type AOS_Frame_Primary_Header =
     */
     method _print = void:
     {
-      print ("#<\n");
+      print ("  #<\n");
       printf ("  %<struct-field-name:Primary Header%>:\n");
       printf ("    %<struct-field-name:Version%>: %<integer:%u2d%>\n", version+1);
       printf ("    %<struct-field-name:Spacecraft ID%>: %<integer:0x%u8x%>\n", scid);
@@ -85,13 +95,15 @@ type AOS_Frame_Primary_Header =
         print ("Idle\n");
       else
         printf ("%<integer:0x%u6x%>\n", vcid);
-      printf ("    %<struct-field-name:Frame Count%>: %<integer:%u28d%>\n", count_cycle:::count);
-      printf ("    %<struct-field-name:Replay Flag%>: %s\n", replay_flag ? "Yes" : "No");
-      print (">\n");
+      printf ("    %<struct-field-name:Frame Count%>: %<integer:%u28d%>\n", signaling.count_cycle:::count);
+      printf ("    %<struct-field-name:Signaling%>:\n");
+      printf ("      %<struct-field-name:Replay Flag%>: %s\n", signaling.replay_flag ? "Yes" : "No");
+      printf ("      %<struct-field-name:Frame Count Used%>: %s\n", signaling.count_usage ? "Yes" : "No");
+      if (aos_fhec_present)
+        printf ("    %<struct-field-name:Error Control%>: 0x%u16x\n", fhec);
+      print ("  >\n");
     }
   };
-
-assert(1#AOS_Frame_Primary_Header == 6#B);
 
 /**
  * AOS M_PDU Header
@@ -125,47 +137,41 @@ type AOS_Frame =
   {
     AOS_Frame_Primary_Header header;
 
-    if (aos_fhec_present)
-      uint<16> fhec;
-
     // Insert Zone
-    var insert_zone_offset = OFFSET;
+    byte[0] insert_zone_field;
+    var insert_zone_offset = insert_zone_field'offset;
+    computed byte[] insert_zone;
     if (aos_insert_zone_length > 0#B)
       byte[0] @ insert_zone_offset + aos_insert_zone_length;
 
+    /**
+     * Get the insert zone field.
+     * @return Array containing the insert zone field.
+     */
+    method get_insert_zone = byte[]:
+    {
+      return byte[aos_insert_zone_length] @ insert_zone_offset;
+    }
+
+    /**
+     * Set the insert zone field.
+     * @param i Array containing the insert zone field.
+     */
+    method set_insert_zone = (byte[] i) void:
+    {
+      byte[aos_insert_zone_length] @ insert_zone_offset = i;
+    }
+
     // Data Field
-    var data_offset = OFFSET;
-    var data_length = (aos_frame_length - 1#AOS_Frame_Primary_Header)
+    byte[0] data_field;
+    var data_offset = data_field'offset;
+    var data_length = (aos_frame_length - header'size)
                     + (aos_fhec_present ? -2#B : 0#B)
                     + (-aos_insert_zone_length)
                     + (aos_fecf_present ? -2#B : 0#B)
                     + (aos_ocf_present[header.vcid] ? -4#B : 0#B);
+    computed byte[] data;
     byte[0] @ data_offset + data_length;
-
-    if (aos_ocf_present[header.vcid])
-      union {
-        CLCW clcw;
-
-        struct {
-          uint<1> type_flag : type_flag == 1;
-          uint<1> report_use;
-          uint<30> data;
-        } type2;
-      } ocf;
-
-    /**
-     * Calculate the frame error control field.
-     * @return Expected FECF.
-     */
-    fun calculate_crc = uint<16>:
-    {
-      var length = aos_frame_length
-                 + (aos_fecf_present ? -2#B : 0#B);
-      return crc16ccitt(0xFFFF, byte[length] @ header'offset);
-    }
-
-    if (aos_fecf_present)
-      uint<16> fecf : fecf == calculate_crc();
 
     /**
      * Get the data field.
@@ -177,12 +183,91 @@ type AOS_Frame =
     }
 
     /**
-     * Get the insert zone field.
-     * @return Array containing the insert zone field.
+     * Set the data field.
+     * @param d Array containing the data field.
      */
-    method get_insert_zone = byte[]:
+    method set_data = (byte[] d) void:
     {
-      return byte[aos_insert_zone_length] @ insert_zone_offset;
+      byte[data_length] @ data_offset = d;;
+    }
+
+    /**
+    * Calculate the frame error control field.
+    * @return Expected FECF.
+    */
+    fun calculate_crc = uint<16>:
+    {
+      var length = aos_frame_length
+                + (aos_fecf_present ? -2#B : 0#B);
+      return crc16ccitt(0xFFFF, byte[length] @ header'offset);
+    }
+
+    struct {
+      if (aos_ocf_present[header.vcid])
+        union {
+          CLCW clcw;
+
+          struct {
+            uint<1> type_flag : type_flag == 1;
+            uint<1> report_use;
+            uint<30> data;
+
+            /**
+            * Pretty printer.
+            */
+            method _print = void:
+            {
+              print ("      #<\n");
+              printf ("      %<struct-field-name:Type-2 Report%>:\n");
+              printf ("        %<struct-field-name:Report Use%>: ");
+              if (report_use == AOS_TYPE2_PROJECT_SPECIFIC)
+                print ("Project-specific\n");
+              else
+                print ("SDLS FSR\n");
+              printf ("        %<struct-field-name:Data%>: %<integer:%u30d%>\n", data);
+              print ("      >\n");
+            }
+          } type2;
+
+          /**
+          * Pretty printer.
+          */
+          method _print = void:
+          {
+            try
+              printf ("%v",clcw);
+            catch {
+              printf ("%v",type2);
+            }
+          }
+        } ocf;
+
+      if (aos_fecf_present)
+        uint<16> fecf : fecf == calculate_crc();
+    } trailer;
+
+    /**
+    * Pretty printer.
+    */
+    method _print = void:
+    {
+      printf ("#<\n");
+      printf ("%v", header);
+      if (aos_insert_zone_length > 0#B)
+        printf ("  %<struct-field-name:Insert Zone%>: %v\n", get_insert_zone);
+      printf ("  %<struct-field-name:Data%>: %v\n", get_data);
+      if (aos_ocf_present[header.vcid] || aos_fecf_present)
+        printf ("  %<struct-field-name:Trailer%>:\n");
+      if (aos_ocf_present[header.vcid])
+        printf ("    %<struct-field-name:OCF%>: \n%v", trailer.ocf);
+      if (aos_fecf_present)
+      {
+        printf ("    %<struct-field-name:FECF%>: 0x%u16x", trailer.fecf);
+        if (trailer.fecf != calculate_crc())
+          printf (" %<error:(expected 0x%u16x)%>", calculate_crc());
+        print ("\n");
+      }
+      print (">\n");
     }
   };
 

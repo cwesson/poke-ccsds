@@ -25,6 +25,11 @@ var TM_NO_FIRST_HEADER = 0x7FF;
 /// TM Only Idle Data (4.1.2.7.6.5)
 var TM_FIRST_HEADER_IDLE = 0x7FE;
 
+/// TM OCR Type-2 Report is project-specific (4.1.5.5a)
+var TM_TYPE2_PROJECT_SPECIFIC = 0t;
+/// TM OCR Type-2 Report is SDLS FSR (4.1.5.5b)
+var TM_TYPE2_SDLS_FSR = 1t;
+
 /**
  * TM Transfer Frame Primary Header
  */
@@ -191,39 +196,41 @@ type TM_Frame =
 
     struct {
       if (header.ocf_flag)
-        struct {
-          uint<1> type_flag;
+        union {
+          CLCW clcw;
 
-          if (type_flag == 0)
-            CLCW clcw;
+          struct {
+            uint<1> type_flag : type_flag == 1;
+            uint<1> report_use;
+            uint<30> data;
 
-          if (type_flag == 1)
-            struct {
-              uint<1> report_use;
-              uint<30> data;
-
-              /**
-              * Pretty printer.
-              */
-              method _print = void:
-              {
-                print ("      #<\n");
-                printf ("      %<struct-field-name:Type-2 Report%>:\n");
-                printf ("        %<struct-field-name:Report Use%>: %<integer:%u1d%>\n", report_use);
-                printf ("        %<struct-field-name:Data%>: %<integer:%u30d%>\n", data);
-                print ("      >\n");
-              }
-            } type2;
+            /**
+            * Pretty printer.
+            */
+            method _print = void:
+            {
+              print ("      #<\n");
+              printf ("      %<struct-field-name:Type-2 Report%>:\n");
+              printf ("        %<struct-field-name:Report Use%>: ");
+              if (report_use == TM_TYPE2_PROJECT_SPECIFIC)
+                print ("Project-specific\n");
+              else
+                print ("SDLS FSR\n");
+              printf ("        %<struct-field-name:Data%>: %<integer:%u30d%>\n", data);
+              print ("      >\n");
+            }
+          } type2;
 
           /**
           * Pretty printer.
           */
           method _print = void:
           {
-            if (type_flag == 0)
+            try
               printf ("%v",clcw);
-            else
+            catch {
               printf ("%v",type2);
+            }
           }
         } ocf;
 
